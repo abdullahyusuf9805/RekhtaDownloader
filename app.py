@@ -44,7 +44,7 @@ def get_status_html(message, show_spinner=True):
     </style>
     """
 
-url = st.text_input("Paste Rekhta Link Here:")
+url = st.text_input("Paste Rekhta Link Here:", placeholder="https://www.rekhta.org/ebooks/...")
 
 col1, col2 = st.columns([2, 8])
 with col1:
