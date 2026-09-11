@@ -271,4 +271,3 @@ if start_clicked and url:
         )
     else:
         button_slot.error("Failed to extract pages.")
-        
