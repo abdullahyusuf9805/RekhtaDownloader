@@ -19,15 +19,18 @@ st.markdown(
         display: none !important;
     }
     
-    /* Unified dimensions, fonts, and borders for both input box and buttons */
+    /* Enforce 100% identical height across all wrappers, inputs, and buttons */
+    div[data-testid="stTextInput"],
+    div[data-testid="stTextInput"] > div,
     div[data-testid="stTextInput"] input,
+    div[data-testid="stButton"],
     div[data-testid="stButton"] > button,
+    div[data-testid="stDownloadButton"],
     div[data-testid="stDownloadButton"] > button,
     .processing-container {
         height: 48px !important;
-        font-size: 16px !important;
-        font-family: inherit !important;
-        border-radius: 8px !important;
+        min-height: 48px !important;
+        max-height: 48px !important;
         box-sizing: border-box !important;
         margin: 0 !important;
     }
@@ -38,6 +41,9 @@ st.markdown(
         background-color: #0e1117 !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
         color: #ffffff !important;
+        font-size: 16px !important;
+        font-family: inherit !important;
+        border-radius: 8px !important;
     }
     div[data-testid="stTextInput"] input:focus {
         border-color: #279e63 !important;
@@ -47,7 +53,10 @@ st.markdown(
     /* State 1 & General Button styling */
     div[data-testid="stButton"] > button {
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        font-size: 16px !important;
+        font-family: inherit !important;
         font-weight: 500 !important;
+        border-radius: 8px !important;
     }
 
     /* State 2: Processing Container styling */
@@ -60,7 +69,10 @@ st.markdown(
         background-color: #212328;
         border: 1px solid rgba(255, 255, 255, 0.2);
         color: #ffffff;
+        font-size: 16px;
+        font-family: inherit;
         font-weight: 500;
+        border-radius: 8px;
     }
     
     .spinner-ring {
@@ -81,7 +93,10 @@ st.markdown(
         background-color: #0b291b !important;
         border: 1px solid #1f7a4d !important;
         color: #ffffff !important;
+        font-size: 16px !important;
+        font-family: inherit !important;
         font-weight: 500 !important;
+        border-radius: 8px !important;
     }
     div[data-testid="stDownloadButton"] > button:hover {
         background-color: #123d29 !important;
