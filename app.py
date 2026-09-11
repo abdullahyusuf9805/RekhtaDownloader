@@ -7,6 +7,8 @@ from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
 
 st.set_page_config(page_title="Rekhta PDF Extractor", page_icon="📚")
 st.title("📚 Rekhta PDF Extractor")
@@ -19,7 +21,7 @@ def get_driver():
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     
-    # CRITICAL SECURITY BYPASS: Linux Chrome requires a dummy user-data-dir to disable web security
+    # CRITICAL SECURITY BYPASS
     options.add_argument("--disable-web-security")
     options.add_argument("--disable-site-isolation-trials")
     options.add_argument("--user-data-dir=/tmp/chrome-session")
@@ -28,7 +30,6 @@ def get_driver():
     return driver
 
 url = st.text_input("Paste Rekhta Link Here:")
-target_pages = st.number_input("Pages to extract (Check Rekhta for total pages):", min_value=1, max_value=1000, value=50)
 
 if st.button("Start Extraction") and url:
     progress_bar = st.progress(0)
@@ -36,11 +37,21 @@ if st.button("Start Extraction") and url:
     log_container = st.container()
     
     driver = get_driver()
+    wait = WebDriverWait(driver, 15)
     actions = ActionChains(driver)
     
-    status_text.text("Loading book (waiting 5 seconds for initialization)...")
+    status_text.text("Loading book and detecting page count...")
     driver.get(url)
-    time.sleep(5)
+    time.sleep(5) # Let the initial reader UI load
+    
+    # --- AUTO DETECT PAGES ---
+    try:
+        total_elem = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "ebookTotalPageCount")))
+        target_pages = int(total_elem.text.strip())
+        st.info(f"✅ Automatically detected **{target_pages} pages** in this book.")
+    except Exception:
+        target_pages = 500
+        st.warning("⚠️ Could not auto-detect total pages. Extracting until the end of the book (Max 500).")
     
     images = []
     seen_b64 = set()
@@ -56,8 +67,10 @@ if st.button("Start Extraction") and url:
                 var rect = c.getBoundingClientRect();
                 var centerX = rect.left + (rect.width / 2);
                 var style = window.getComputedStyle(c);
+                
+                // Lowered opacity threshold to 0.5 to catch slow-fading cloud animations
                 if (centerX > 0 && centerX < windowWidth && rect.width > 0 && 
-                    parseFloat(style.opacity) > 0.8 && style.visibility !== 'hidden' && style.display !== 'none') {
+                    parseFloat(style.opacity) > 0.5 && style.visibility !== 'hidden' && style.display !== 'none') {
                     var b64 = c.toDataURL('image/jpeg', 1.0).substring(23);
                     result.push({ x: rect.left, b64: b64 });
                 }
@@ -89,28 +102,29 @@ if st.button("Start Extraction") and url:
 
     with log_container:
         while extracted_count < target_pages:
-            time.sleep(4) 
+            time.sleep(5) # Base wait for the page to turn
             
             nuke_overlays()
             canvas_data = get_visible_canvases()
             
-            # SIBLING DELAY LOGIC: Check if ANY new pages are in this scan
             has_new = any(d['b64'] not in seen_b64 for d in canvas_data)
             
             if has_new:
-                # Wait 2 extra seconds to ensure the 2nd page finishes loading before saving
-                time.sleep(2)
+                # CLOUD SIBLING DELAY: Wait 4 extra seconds for the slow headless animation to finish
+                time.sleep(4)
                 
-                # Re-scan the screen now that both pages are guaranteed to be fully loaded
+                # Re-scan the screen to grab BOTH fully loaded pages
                 canvas_data = get_visible_canvases()
                 canvas_data.sort(key=lambda item: item['x'], reverse=True)
                 
+                new_pages_added = 0
                 for data in canvas_data:
                     if data['b64'] not in seen_b64:
                         seen_b64.add(data['b64'])
                         img = Image.open(BytesIO(base64.b64decode(data['b64']))).convert('RGB')
                         images.append(img)
                         extracted_count += 1
+                        new_pages_added += 1
                         
                         st.write(f"Successfully extracted page {extracted_count}/{target_pages}")
                         progress_bar.progress(min(extracted_count / target_pages, 1.0))
@@ -121,18 +135,20 @@ if st.button("Start Extraction") and url:
                 if extracted_count >= target_pages:
                     break
                 
-                stuck_counter = 0
-                time.sleep(1) # Cooldown before turning
-                click_next_page()
+                # Only click next if we actually saved new pages
+                if new_pages_added > 0:
+                    stuck_counter = 0
+                    time.sleep(1) # Cooldown before turning
+                    click_next_page()
                 
             else:
                 stuck_counter += 1
-                status_text.text(f"Waiting for cloud network... ({stuck_counter}/10)")
+                status_text.text(f"Waiting for cloud network... ({stuck_counter}/15)")
                 
                 if stuck_counter % 3 == 0:
                     click_next_page()
                 
-                if stuck_counter >= 10:
+                if stuck_counter >= 15:
                     st.warning(f"⚠️ Extraction stopped early at {extracted_count} pages. The server network timed out, or this is the physical end of the book.")
                     break
 
@@ -148,8 +164,6 @@ if st.button("Start Extraction") and url:
         
         parsed_url = urlparse(url)
         slug = parsed_url.path.strip('/').split('/')[-1]
-        
-        # Formats the filename to Title Case
         filename = slug.replace('-', ' ').title() + ".pdf"
         
         if len(images) == target_pages:
