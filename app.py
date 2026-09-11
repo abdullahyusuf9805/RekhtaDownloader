@@ -40,7 +40,7 @@ if st.button("Start Extraction") and url:
     wait = WebDriverWait(driver, 15)
     actions = ActionChains(driver)
     
-    status_text.text("Loading book and detecting page count...")
+    st.spinner("Loading book and detecting page count...")
     driver.get(url)
     time.sleep(5) 
     
@@ -48,10 +48,8 @@ if st.button("Start Extraction") and url:
     try:
         total_elem = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "ebookTotalPageCount")))
         target_pages = int(total_elem.text.strip())
-        status_text.info(f"✅ Automatically detected **{target_pages} pages** in this book.")
     except Exception:
-        target_pages = 500
-        status_text.warning("⚠️ Could not auto-detect total pages. Extracting until the end of the book (Max 500).")
+        target_pages = 50000
     
     images = []
     seen_b64 = set()
