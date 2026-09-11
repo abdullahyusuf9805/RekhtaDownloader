@@ -12,11 +12,67 @@ from selenium.webdriver.support import expected_conditions as EC
 
 st.set_page_config(page_title="Rekhta eBook Downloader", page_icon="bookdownloader.png")
 
+# Custom UI styling to match the three states exactly
 st.markdown(
     """
     <style>
     div[data-testid="InputInstructions"] {
         display: none !important;
+    }
+    
+    /* State 1: Start Button styling */
+    div[data-testid="stButton"] > button {
+        border-radius: 8px !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        font-size: 16px !important;
+        padding: 10px 16px !important;
+        height: 48px !important;
+    }
+
+    /* State 2: Processing Container styling */
+    .processing-container {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        width: 100%;
+        height: 48px;
+        background-color: #212328;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        color: #ffffff;
+        font-size: 16px;
+        font-weight: 500;
+        box-sizing: border-box;
+    }
+    
+    .spinner-ring {
+        width: 15px;
+        height: 15px;
+        border: 2px dashed #ffffff;
+        border-radius: 50%;
+        animation: spin 1.2s linear infinite;
+    }
+    
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    /* State 3: Download Button green styling */
+    div[data-testid="stDownloadButton"] > button {
+        background-color: #0b291b !important;
+        border: 1px solid #1f7a4d !important;
+        color: #ffffff !important;
+        border-radius: 8px !important;
+        font-size: 16px !important;
+        font-weight: 500 !important;
+        height: 48px !important;
+    }
+    div[data-testid="stDownloadButton"] > button:hover {
+        background-color: #123d29 !important;
+        border-color: #279e63 !important;
+        color: #ffffff !important;
     }
     </style>
     """,
@@ -36,45 +92,33 @@ def get_driver():
     options.add_argument("--disable-site-isolation-trials")
     options.add_argument("--user-data-dir=/tmp/chrome-session")
     
-    driver = webdriver.Chrome(options=options)
-    return driver
+    return webdriver.Chrome(options=options)
 
-def get_status_html(message, show_spinner=True):
-    icon_html = """<div style="width: 18px; height: 18px; border: 2px solid rgba(128, 128, 128, 0.3); border-top: 2px solid var(--text-color); border-radius: 50%; animation: spin 1s linear infinite;"></div>""" if show_spinner else "✨"
-    
+def get_processing_html(percentage):
     return f"""
-    <div style="display: flex; align-items: center; gap: 12px; margin-top: 6px;">
-        {icon_html}
-        <span style="font-size: 16px; font-weight: 500; color: var(--text-color);">{message}</span>
+    <div class="processing-container">
+        <div class="spinner-ring"></div>
+        <span>Processing Generating eBook - {percentage}%</span>
     </div>
-    <style>
-    @keyframes spin {{
-        0% {{ transform: rotate(0deg); }}
-        100% {{ transform: rotate(360deg); }}
-    }}
-    </style>
     """
 
-url = st.text_input("Paste Rekhta eBook Link Here:", placeholder="https://www.rekhta.org/ebooks/...")
+url = st.text_input("Paste Rekhta Link Here:", placeholder="https://www.rekhta.org/ebooks/...")
 if url:
     url = url.replace("/detail", "")
 
-col1, col2 = st.columns([2, 8])
-with col1:
-    start_btn = st.button("Start Extraction", use_container_width=True)
-with col2:
-    status_placeholder = st.empty()
+# Single button slot that dynamically replaces itself
+button_slot = st.empty()
 
-progress_bar = st.empty() 
+# State 1: Start Extraction
+start_clicked = button_slot.button("Start Extraction", use_container_width=True)
 
-if start_btn and url:
-    progress_bar = progress_bar.progress(0)
-    
+if start_clicked and url:
     driver = get_driver()
     wait = WebDriverWait(driver, 15)
     actions = ActionChains(driver)
     
-    status_placeholder.markdown(get_status_html("Loading Book & Counting Pages..."), unsafe_allow_html=True)
+    # State 2: Replace with Processing 0%
+    button_slot.markdown(get_processing_html(0), unsafe_allow_html=True)
     driver.get(url)
     time.sleep(5) 
     
@@ -98,7 +142,6 @@ if start_btn and url:
                 var rect = c.getBoundingClientRect();
                 var centerX = rect.left + (rect.width / 2);
                 var style = window.getComputedStyle(c);
-                
                 if (centerX > 0 && centerX < windowWidth && rect.width > 0 && 
                     parseFloat(style.opacity) > 0.5 && style.visibility !== 'hidden' && style.display !== 'none') {
                     var b64 = c.toDataURL('image/jpeg', 1.0).substring(23);
@@ -130,19 +173,14 @@ if start_btn and url:
         actions.reset_actions()
         actions.move_to_element_with_offset(body, x_offset, 0).click().pause(0.5).perform()
 
-    status_placeholder.markdown(get_status_html(f"Extracting Page {extracted_count} Out Of {target_pages}"), unsafe_allow_html=True)
-
     while extracted_count < target_pages:
         time.sleep(5) 
-        
         nuke_overlays()
         canvas_data = get_visible_canvases()
-        
         has_new = any(d['b64'] not in seen_b64 for d in canvas_data)
         
         if has_new:
             time.sleep(4)
-            
             canvas_data = get_visible_canvases()
             canvas_data.sort(key=lambda item: item['x'], reverse=True)
             
@@ -155,8 +193,9 @@ if start_btn and url:
                     extracted_count += 1
                     new_pages_added += 1
                     
-                    status_placeholder.markdown(get_status_html(f"Extracting Page {extracted_count} Out Of {target_pages}"), unsafe_allow_html=True)
-                    progress_bar.progress(min(extracted_count / target_pages, 1.0))
+                    # Update State 2 with live percentage
+                    pct = min(int((extracted_count / target_pages) * 100), 100)
+                    button_slot.markdown(get_processing_html(pct), unsafe_allow_html=True)
                     
                     if extracted_count >= target_pages:
                         break
@@ -168,23 +207,17 @@ if start_btn and url:
                 stuck_counter = 0
                 time.sleep(1) 
                 click_next_page()
-            
         else:
             stuck_counter += 1
-            status_placeholder.markdown(get_status_html(f"Waiting for network... ({stuck_counter}/15)"), unsafe_allow_html=True)
-            
             if stuck_counter % 3 == 0:
                 click_next_page()
-            
             if stuck_counter >= 15:
                 break
 
     driver.quit()
     
-    # --- PDF GENERATION & FINAL STATE ---
+    # State 3: Replaces State 2 with Download Rekhta eBook button
     if len(images) > 0:
-        status_placeholder.markdown(get_status_html("Compiling PDF..."), unsafe_allow_html=True)
-        
         pdf_buffer = BytesIO()
         images[0].save(pdf_buffer, format="PDF", save_all=True, append_images=images[1:], resolution=100.0)
         pdf_data = pdf_buffer.getvalue()
@@ -193,21 +226,13 @@ if start_btn and url:
         slug = parsed_url.path.strip('/').split('/')[-1]
         filename = slug.replace('-', ' ').title() + ".pdf"
         
-        status_placeholder.markdown(get_status_html("Extraction Completed, You Can Download The Book Now", show_spinner=False), unsafe_allow_html=True)
-        progress_bar.empty()
-        
-        # Replace the extraction columns completely with just the download button taking full width
-        with col1:
-            st.empty()
-        with col2:
-            st.empty()
-            
-        st.download_button(
-            label="Download PDF",
+        button_slot.empty()
+        button_slot.download_button(
+            label="📥 Download Rekhta eBook",
             data=pdf_data,
             file_name=filename,
             mime="application/pdf",
             use_container_width=True
         )
     else:
-        status_placeholder.markdown(get_status_html("Failed. No pages were extracted.", show_spinner=False), unsafe_allow_html=True)
+        button_slot.error("Failed to extract pages.")
