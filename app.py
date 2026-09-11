@@ -19,7 +19,7 @@ st.markdown(
         display: none !important;
     }
     
-    /* Enforce 100% identical height across all wrappers, inputs, and buttons */
+    /* Enforce 100% identical height, margins, and borders */
     div[data-testid="stTextInput"],
     div[data-testid="stTextInput"] > div,
     div[data-testid="stTextInput"] input,
@@ -32,10 +32,16 @@ st.markdown(
         min-height: 48px !important;
         max-height: 48px !important;
         box-sizing: border-box !important;
-        margin: 0 !important;
     }
 
-    /* Text input specific styling */
+    div[data-testid="stTextInput"] {
+        margin-bottom: 8px !important;
+    }
+    div[data-testid="stButton"] {
+        margin-top: 0px !important;
+    }
+
+    /* Text input styling */
     div[data-testid="stTextInput"] input {
         padding: 0 16px !important;
         background-color: #0e1117 !important;
@@ -57,6 +63,12 @@ st.markdown(
         font-family: inherit !important;
         font-weight: 500 !important;
         border-radius: 8px !important;
+        background-color: #0e1117 !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stButton"] > button:hover {
+        border-color: #279e63 !important;
+        color: #ffffff !important;
     }
 
     /* State 2: Processing Container styling */
@@ -259,3 +271,4 @@ if start_clicked and url:
         )
     else:
         button_slot.error("Failed to extract pages.")
+        
