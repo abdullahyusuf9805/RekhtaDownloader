@@ -34,7 +34,7 @@ url = st.text_input("Paste Rekhta Link Here:")
 if st.button("Start Extraction") and url:
     progress_bar = st.progress(0)
     status_text = st.empty()
-    log_container = st.container()
+    page_tracker = st.empty() # Creates a single placeholder for the page counter
     
     driver = get_driver()
     wait = WebDriverWait(driver, 15)
@@ -42,16 +42,16 @@ if st.button("Start Extraction") and url:
     
     status_text.text("Loading book and detecting page count...")
     driver.get(url)
-    time.sleep(5) # Let the initial reader UI load
+    time.sleep(5) 
     
     # --- AUTO DETECT PAGES ---
     try:
         total_elem = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "ebookTotalPageCount")))
         target_pages = int(total_elem.text.strip())
-        st.info(f"✅ Automatically detected **{target_pages} pages** in this book.")
+        status_text.info(f"✅ Automatically detected **{target_pages} pages** in this book.")
     except Exception:
         target_pages = 500
-        st.warning("⚠️ Could not auto-detect total pages. Extracting until the end of the book (Max 500).")
+        status_text.warning("⚠️ Could not auto-detect total pages. Extracting until the end of the book (Max 500).")
     
     images = []
     seen_b64 = set()
@@ -68,7 +68,6 @@ if st.button("Start Extraction") and url:
                 var centerX = rect.left + (rect.width / 2);
                 var style = window.getComputedStyle(c);
                 
-                // Lowered opacity threshold to 0.5 to catch slow-fading cloud animations
                 if (centerX > 0 && centerX < windowWidth && rect.width > 0 && 
                     parseFloat(style.opacity) > 0.5 && style.visibility !== 'hidden' && style.display !== 'none') {
                     var b64 = c.toDataURL('image/jpeg', 1.0).substring(23);
@@ -100,9 +99,10 @@ if st.button("Start Extraction") and url:
         actions.reset_actions()
         actions.move_to_element_with_offset(body, x_offset, 0).click().pause(0.5).perform()
 
-    with log_container:
+    # The spinner adds the animated loading circle to the UI
+    with st.spinner("Extracting book data..."):
         while extracted_count < target_pages:
-            time.sleep(5) # Base wait for the page to turn
+            time.sleep(5) 
             
             nuke_overlays()
             canvas_data = get_visible_canvases()
@@ -110,10 +110,8 @@ if st.button("Start Extraction") and url:
             has_new = any(d['b64'] not in seen_b64 for d in canvas_data)
             
             if has_new:
-                # CLOUD SIBLING DELAY: Wait 4 extra seconds for the slow headless animation to finish
                 time.sleep(4)
                 
-                # Re-scan the screen to grab BOTH fully loaded pages
                 canvas_data = get_visible_canvases()
                 canvas_data.sort(key=lambda item: item['x'], reverse=True)
                 
@@ -126,7 +124,8 @@ if st.button("Start Extraction") and url:
                         extracted_count += 1
                         new_pages_added += 1
                         
-                        st.write(f"Successfully extracted page {extracted_count}/{target_pages}")
+                        # Overwrites the existing line instead of making a new one
+                        page_tracker.markdown(f"**Processing page ({extracted_count}/{target_pages})**")
                         progress_bar.progress(min(extracted_count / target_pages, 1.0))
                         
                         if extracted_count >= target_pages:
@@ -135,15 +134,14 @@ if st.button("Start Extraction") and url:
                 if extracted_count >= target_pages:
                     break
                 
-                # Only click next if we actually saved new pages
                 if new_pages_added > 0:
                     stuck_counter = 0
-                    time.sleep(1) # Cooldown before turning
+                    time.sleep(1) 
                     click_next_page()
                 
             else:
                 stuck_counter += 1
-                status_text.text(f"Waiting for cloud network... ({stuck_counter}/15)")
+                page_tracker.text(f"Waiting for cloud network... ({stuck_counter}/15)")
                 
                 if stuck_counter % 3 == 0:
                     click_next_page()
@@ -156,6 +154,7 @@ if st.button("Start Extraction") and url:
     
     # --- PDF GENERATION & DOWNLOAD ---
     if len(images) > 0:
+        page_tracker.empty() # Clears the tracker text so the screen stays clean
         status_text.text(f"Compiling PDF with {len(images)} pages...")
         
         pdf_buffer = BytesIO()
