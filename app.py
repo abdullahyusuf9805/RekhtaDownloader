@@ -13,6 +13,17 @@ from selenium.webdriver.support import expected_conditions as EC
 st.set_page_config(page_title="Rekhta PDF Extractor", page_icon="📚")
 st.title("📚 Rekhta PDF Extractor")
 
+st.markdown(
+    """
+    <style>
+    div[data-testid="InputInstructions"] {
+        display: none !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
 def get_driver():
     options = webdriver.ChromeOptions()
     options.add_argument("--headless=new") 
