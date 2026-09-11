@@ -19,7 +19,11 @@ st.markdown(
         display: none !important;
     }
     
-    /* 100% Identical Box Model, Height, Padding, and Font */
+    /* Force 100% identical width, height, and box-sizing across input and buttons */
+    div.stTextInput, div.stButton, div.stDownloadButton {
+        width: 100% !important;
+    }
+
     div[data-testid="stTextInput"] input,
     div[data-testid="stButton"] > button,
     div[data-testid="stDownloadButton"] > button,
@@ -27,8 +31,8 @@ st.markdown(
         height: 48px !important;
         min-height: 48px !important;
         max-height: 48px !important;
+        width: 100% !important;
         padding: 0 16px !important;
-        line-height: normal !important;
         box-sizing: border-box !important;
         border-radius: 8px !important;
         font-size: 16px !important;
@@ -40,11 +44,8 @@ st.markdown(
     div[data-testid="stTextInput"] {
         margin-bottom: 8px !important;
     }
-    div[data-testid="stButton"] {
-        margin-top: 0px !important;
-    }
 
-    /* Text input specific styling */
+    /* Text input styling */
     div[data-testid="stTextInput"] input {
         background-color: #0e1117 !important;
         border: 1px solid rgba(255, 255, 255, 0.2) !important;
@@ -75,7 +76,6 @@ st.markdown(
         align-items: center;
         justify-content: center;
         gap: 12px;
-        width: 100%;
         background-color: #212328;
         border: 1px solid rgba(255, 255, 255, 0.2);
         color: #ffffff;
