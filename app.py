@@ -10,7 +10,7 @@ from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
-st.set_page_config(page_title="Rekhta PDF Extractor", page_icon="📚")
+st.set_page_config(page_title="Rekhta eBook Downloader", page_icon="bookdownloader.png")
 st.markdown("<h3 style='text-align: center;'>📚 Rekhta eBook Downloader</h3>", unsafe_allow_html=True)
 
 st.markdown(
