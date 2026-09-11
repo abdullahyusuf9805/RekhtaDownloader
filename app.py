@@ -12,7 +12,6 @@ from selenium.webdriver.support import expected_conditions as EC
 
 st.set_page_config(page_title="Rekhta eBook Downloader", page_icon="bookdownloader.png")
 
-# Custom UI styling to match the three states exactly
 st.markdown(
     """
     <style>
@@ -20,13 +19,35 @@ st.markdown(
         display: none !important;
     }
     
-    /* State 1: Start Button styling */
-    div[data-testid="stButton"] > button {
-        border-radius: 8px !important;
-        border: 1px solid rgba(255, 255, 255, 0.2) !important;
-        font-size: 16px !important;
-        padding: 10px 16px !important;
+    /* Unified dimensions, fonts, and borders for both input box and buttons */
+    div[data-testid="stTextInput"] input,
+    div[data-testid="stButton"] > button,
+    div[data-testid="stDownloadButton"] > button,
+    .processing-container {
         height: 48px !important;
+        font-size: 16px !important;
+        font-family: inherit !important;
+        border-radius: 8px !important;
+        box-sizing: border-box !important;
+        margin: 0 !important;
+    }
+
+    /* Text input specific styling */
+    div[data-testid="stTextInput"] input {
+        padding: 0 16px !important;
+        background-color: #0e1117 !important;
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        color: #ffffff !important;
+    }
+    div[data-testid="stTextInput"] input:focus {
+        border-color: #279e63 !important;
+        box-shadow: none !important;
+    }
+
+    /* State 1 & General Button styling */
+    div[data-testid="stButton"] > button {
+        border: 1px solid rgba(255, 255, 255, 0.2) !important;
+        font-weight: 500 !important;
     }
 
     /* State 2: Processing Container styling */
@@ -36,14 +57,10 @@ st.markdown(
         justify-content: center;
         gap: 12px;
         width: 100%;
-        height: 48px;
         background-color: #212328;
         border: 1px solid rgba(255, 255, 255, 0.2);
-        border-radius: 8px;
         color: #ffffff;
-        font-size: 16px;
         font-weight: 500;
-        box-sizing: border-box;
     }
     
     .spinner-ring {
@@ -64,10 +81,7 @@ st.markdown(
         background-color: #0b291b !important;
         border: 1px solid #1f7a4d !important;
         color: #ffffff !important;
-        border-radius: 8px !important;
-        font-size: 16px !important;
         font-weight: 500 !important;
-        height: 48px !important;
     }
     div[data-testid="stDownloadButton"] > button:hover {
         background-color: #123d29 !important;
@@ -79,7 +93,7 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-st.markdown("<h3 style='text-align: center;'>📚 Rekhta eBook Downloader</h3>", unsafe_allow_html=True)
+st.markdown("<h3 style='text-align: center; margin-bottom: 25px;'>📚 Rekhta eBook Downloader</h3>", unsafe_allow_html=True)
 
 def get_driver():
     options = webdriver.ChromeOptions()
@@ -106,10 +120,7 @@ url = st.text_input("Paste Rekhta Link Here:", placeholder="https://www.rekhta.o
 if url:
     url = url.replace("/detail", "")
 
-# Single button slot that dynamically replaces itself
 button_slot = st.empty()
-
-# State 1: Start Extraction
 start_clicked = button_slot.button("Start Extraction", use_container_width=True)
 
 if start_clicked and url:
@@ -117,7 +128,6 @@ if start_clicked and url:
     wait = WebDriverWait(driver, 15)
     actions = ActionChains(driver)
     
-    # State 2: Replace with Processing 0%
     button_slot.markdown(get_processing_html(0), unsafe_allow_html=True)
     driver.get(url)
     time.sleep(5) 
@@ -193,7 +203,6 @@ if start_clicked and url:
                     extracted_count += 1
                     new_pages_added += 1
                     
-                    # Update State 2 with live percentage
                     pct = min(int((extracted_count / target_pages) * 100), 100)
                     button_slot.markdown(get_processing_html(pct), unsafe_allow_html=True)
                     
@@ -216,7 +225,6 @@ if start_clicked and url:
 
     driver.quit()
     
-    # State 3: Replaces State 2 with Download Rekhta eBook button
     if len(images) > 0:
         pdf_buffer = BytesIO()
         images[0].save(pdf_buffer, format="PDF", save_all=True, append_images=images[1:], resolution=100.0)
