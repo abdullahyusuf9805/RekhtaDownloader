@@ -56,7 +56,9 @@ def get_status_html(message, show_spinner=True):
     """
 
 url = st.text_input(" Paste Rekhta Link Here:", placeholder="https://www.rekhta.org/ebooks/...")
-
+if url:
+    url = url.replace("/detail", "")
+    
 col1, col2 = st.columns([2, 8])
 with col1:
     start_btn = st.button("Start Extraction", use_container_width=True)
