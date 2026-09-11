@@ -20,8 +20,6 @@ def get_driver():
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
-    
-    # CRITICAL SECURITY BYPASS
     options.add_argument("--disable-web-security")
     options.add_argument("--disable-site-isolation-trials")
     options.add_argument("--user-data-dir=/tmp/chrome-session")
@@ -29,13 +27,14 @@ def get_driver():
     driver = webdriver.Chrome(options=options)
     return driver
 
-# --- CUSTOM UI HELPER ---
-def get_status_html(message, current, total):
+# --- UNIFIED STATUS TRACKER ---
+def get_status_html(message, show_spinner=True):
+    icon_html = """<div style="width: 18px; height: 18px; border: 2px solid rgba(128, 128, 128, 0.3); border-top: 2px solid var(--text-color); border-radius: 50%; animation: spin 1s linear infinite;"></div>""" if show_spinner else "✨"
+    
     return f"""
     <div style="display: flex; align-items: center; gap: 12px; margin-top: 6px;">
-        <div style="width: 18px; height: 18px; border: 2px solid rgba(128, 128, 128, 0.3); border-top: 2px solid var(--text-color); border-radius: 50%; animation: spin 1s linear infinite;"></div>
-        <span style="font-size: 16px; color: var(--text-color);">{message}</span>
-        <span style="font-size: 14px; font-weight: bold; color: var(--text-color);">( Processing Page {current} Out Of {total} )</span>
+        {icon_html}
+        <span style="font-size: 16px; font-weight: 500; color: var(--text-color);">{message}</span>
     </div>
     <style>
     @keyframes spin {{
@@ -47,14 +46,12 @@ def get_status_html(message, current, total):
 
 url = st.text_input("Paste Rekhta Link Here:")
 
-# --- INLINE LAYOUT ---
 col1, col2 = st.columns([2, 8])
 with col1:
     start_btn = st.button("Start Extraction", use_container_width=True)
 with col2:
     status_placeholder = st.empty()
 
-# Progress bar sits perfectly below the columns
 progress_bar = st.empty() 
 
 if start_btn and url:
@@ -64,7 +61,8 @@ if start_btn and url:
     wait = WebDriverWait(driver, 15)
     actions = ActionChains(driver)
     
-    status_placeholder.markdown(get_status_html("Loading book and detecting pages...", 0, "?"), unsafe_allow_html=True)
+    # State A: Loading & Counting
+    status_placeholder.markdown(get_status_html("Loading Book & Counting Pages..."), unsafe_allow_html=True)
     driver.get(url)
     time.sleep(5) 
     
@@ -73,7 +71,6 @@ if start_btn and url:
         target_pages = int(total_elem.text.strip())
     except Exception:
         target_pages = 500
-        st.warning("⚠️ Could not auto-detect total pages. Extracting until the physical end of the book.")
     
     images = []
     seen_b64 = set()
@@ -121,8 +118,8 @@ if start_btn and url:
         actions.reset_actions()
         actions.move_to_element_with_offset(body, x_offset, 0).click().pause(0.5).perform()
 
-    # Initial extraction UI state
-    status_placeholder.markdown(get_status_html("Extracting book data...", extracted_count, target_pages), unsafe_allow_html=True)
+    # Initial Extraction State
+    status_placeholder.markdown(get_status_html(f"Extracting Page {extracted_count} Out Of {target_pages}"), unsafe_allow_html=True)
 
     while extracted_count < target_pages:
         time.sleep(5) 
@@ -147,8 +144,8 @@ if start_btn and url:
                     extracted_count += 1
                     new_pages_added += 1
                     
-                    # Update UI cleanly
-                    status_placeholder.markdown(get_status_html("Extracting book data...", extracted_count, target_pages), unsafe_allow_html=True)
+                    # State B: Dynamic Extraction Updates
+                    status_placeholder.markdown(get_status_html(f"Extracting Page {extracted_count} Out Of {target_pages}"), unsafe_allow_html=True)
                     progress_bar.progress(min(extracted_count / target_pages, 1.0))
                     
                     if extracted_count >= target_pages:
@@ -164,21 +161,20 @@ if start_btn and url:
             
         else:
             stuck_counter += 1
-            status_placeholder.markdown(get_status_html(f"Waiting for cloud network... ({stuck_counter}/15)", extracted_count, target_pages), unsafe_allow_html=True)
+            status_placeholder.markdown(get_status_html(f"Waiting for network... ({stuck_counter}/15)"), unsafe_allow_html=True)
             
             if stuck_counter % 3 == 0:
                 click_next_page()
             
             if stuck_counter >= 15:
-                st.warning(f"⚠️ Extraction stopped early at {extracted_count} pages. The server network timed out, or this is the physical end of the book.")
+                # Breaks out to compile what we have if stuck
                 break
 
     driver.quit()
     
-    # --- PDF GENERATION & DOWNLOAD ---
+    # --- PDF GENERATION & FINAL STATE ---
     if len(images) > 0:
-        status_placeholder.empty() # Wipe the animated spinner
-        st.info(f"✨ Compiling PDF with {len(images)} pages...")
+        status_placeholder.markdown(get_status_html("Compiling PDF..."), unsafe_allow_html=True)
         
         pdf_buffer = BytesIO()
         images[0].save(pdf_buffer, format="PDF", save_all=True, append_images=images[1:], resolution=100.0)
@@ -188,10 +184,8 @@ if start_btn and url:
         slug = parsed_url.path.strip('/').split('/')[-1]
         filename = slug.replace('-', ' ').title() + ".pdf"
         
-        if len(images) == target_pages:
-            st.success("Extraction Complete!")
-        else:
-            st.success("Salvage Complete! (PDF compiled with the pages we managed to grab).")
+        # State C: Completed
+        status_placeholder.markdown(get_status_html("Extraction Completed, You Can Download The Book Now", show_spinner=False), unsafe_allow_html=True)
         
         st.download_button(
             label="Download PDF",
@@ -200,5 +194,4 @@ if start_btn and url:
             mime="application/pdf"
         )
     else:
-        status_placeholder.empty()
-        st.error("No pages were extracted.")
+        status_placeholder.markdown(get_status_html("Failed. No pages were extracted.", show_spinner=False), unsafe_allow_html=True)
