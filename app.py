@@ -7,14 +7,11 @@ from PIL import Image
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.chrome.service import Service
 
 st.set_page_config(page_title="Rekhta PDF Extractor", page_icon="📚")
 st.title("📚 Rekhta PDF Extractor")
 
-# --- WARNING ABOUT CLOUD LIMITATIONS ---
 st.warning("""
 **Note on Cloud Deployments:** Because this app runs on a cloud server, you cannot manually log in to Rekhta. 
 As a guest user, Rekhta may limit extraction to the first 10-15 pages of a book before showing a login wall.
@@ -22,19 +19,21 @@ As a guest user, Rekhta may limit extraction to the first 10-15 pages of a book 
 
 def get_driver():
     options = webdriver.ChromeOptions()
-    # CRITICAL: These arguments are required for Streamlit Cloud (Linux Headless)
     options.add_argument("--headless=new") 
     options.add_argument("--no-sandbox")
     options.add_argument("--disable-dev-shm-usage")
     options.add_argument("--disable-gpu")
     options.add_argument("--window-size=1920,1080")
     
-    # Streamlit Cloud uses the system-installed Chromium driver via packages.txt
+    # CRITICAL SECURITY BYPASS FLAGS (Restored)
+    options.add_argument("--disable-web-security")
+    options.add_argument("--disable-site-isolation-trials")
+    
     driver = webdriver.Chrome(options=options)
     return driver
 
 url = st.text_input("Paste Rekhta Link Here:")
-target_pages = st.number_input("Pages to extract (Default is 15 for Guest limit):", min_value=1, max_value=500, value=12)
+target_pages = st.number_input("Pages to extract (Default is 12 for Guest limit):", min_value=1, max_value=500, value=12)
 
 if st.button("Start Extraction") and url:
     progress_bar = st.progress(0)
@@ -42,11 +41,13 @@ if st.button("Start Extraction") and url:
     log_container = st.container()
     
     driver = get_driver()
-    wait = WebDriverWait(driver, 15)
     actions = ActionChains(driver)
     
-    status_text.text("Loading book...")
+    status_text.text("Loading book (waiting 5 seconds for initialization)...")
     driver.get(url)
+    
+    # Give the page time to construct the canvases before we inject our JavaScript
+    time.sleep(5)
     
     images = []
     seen_b64 = set()
@@ -95,7 +96,7 @@ if st.button("Start Extraction") and url:
 
     with log_container:
         while extracted_count < target_pages:
-            time.sleep(4) # Slow heartbeat for headless rendering
+            time.sleep(4) 
             
             nuke_overlays()
             canvas_data = get_visible_canvases()
@@ -111,7 +112,7 @@ if st.button("Start Extraction") and url:
                     new_pages_added += 1
                     
                     st.write(f"Successfully extracted page {extracted_count}/{target_pages}")
-                    progress_bar.progress(extracted_count / target_pages)
+                    progress_bar.progress(min(extracted_count / target_pages, 1.0))
                     
                     if extracted_count >= target_pages:
                         break
@@ -138,7 +139,6 @@ if st.button("Start Extraction") and url:
     if len(images) > 0:
         status_text.text(f"Compiling PDF with {len(images)} pages...")
         
-        # Save to memory buffer instead of disk
         pdf_buffer = BytesIO()
         images[0].save(pdf_buffer, format="PDF", save_all=True, append_images=images[1:], resolution=100.0)
         pdf_data = pdf_buffer.getvalue()
@@ -149,7 +149,6 @@ if st.button("Start Extraction") and url:
         
         status_text.success("Extraction Complete!")
         
-        # Provide the download button directly to the user
         st.download_button(
             label="Download PDF",
             data=pdf_data,
