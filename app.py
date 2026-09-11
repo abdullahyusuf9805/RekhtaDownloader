@@ -11,7 +11,6 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 
 st.set_page_config(page_title="Rekhta eBook Downloader", page_icon="bookdownloader.png")
-st.markdown("<h3 style='text-align: center;'>📚 Rekhta eBook Downloader</h3>", unsafe_allow_html=True)
 
 st.markdown(
     """
@@ -23,6 +22,8 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
+st.markdown("<h3 style='text-align: center;'>📚 Rekhta eBook Downloader</h3>", unsafe_allow_html=True)
 
 def get_driver():
     options = webdriver.ChromeOptions()
@@ -38,7 +39,6 @@ def get_driver():
     driver = webdriver.Chrome(options=options)
     return driver
 
-# --- UNIFIED STATUS TRACKER ---
 def get_status_html(message, show_spinner=True):
     icon_html = """<div style="width: 18px; height: 18px; border: 2px solid rgba(128, 128, 128, 0.3); border-top: 2px solid var(--text-color); border-radius: 50%; animation: spin 1s linear infinite;"></div>""" if show_spinner else "✨"
     
@@ -55,10 +55,10 @@ def get_status_html(message, show_spinner=True):
     </style>
     """
 
-url = st.text_input(" Paste Rekhta Link Here:", placeholder="https://www.rekhta.org/ebooks/...")
+url = st.text_input("Paste Rekhta Link Here:", placeholder="https://www.rekhta.org/ebooks/...")
 if url:
     url = url.replace("/detail", "")
-    
+
 col1, col2 = st.columns([2, 8])
 with col1:
     start_btn = st.button("Start Extraction", use_container_width=True)
@@ -74,7 +74,6 @@ if start_btn and url:
     wait = WebDriverWait(driver, 15)
     actions = ActionChains(driver)
     
-    # State A: Loading & Counting
     status_placeholder.markdown(get_status_html("Loading Book & Counting Pages..."), unsafe_allow_html=True)
     driver.get(url)
     time.sleep(5) 
@@ -131,7 +130,6 @@ if start_btn and url:
         actions.reset_actions()
         actions.move_to_element_with_offset(body, x_offset, 0).click().pause(0.5).perform()
 
-    # Initial Extraction State
     status_placeholder.markdown(get_status_html(f"Extracting Page {extracted_count} Out Of {target_pages}"), unsafe_allow_html=True)
 
     while extracted_count < target_pages:
@@ -157,7 +155,6 @@ if start_btn and url:
                     extracted_count += 1
                     new_pages_added += 1
                     
-                    # State B: Dynamic Extraction Updates
                     status_placeholder.markdown(get_status_html(f"Extracting Page {extracted_count} Out Of {target_pages}"), unsafe_allow_html=True)
                     progress_bar.progress(min(extracted_count / target_pages, 1.0))
                     
@@ -180,7 +177,6 @@ if start_btn and url:
                 click_next_page()
             
             if stuck_counter >= 15:
-                # Breaks out to compile what we have if stuck
                 break
 
     driver.quit()
@@ -197,14 +193,21 @@ if start_btn and url:
         slug = parsed_url.path.strip('/').split('/')[-1]
         filename = slug.replace('-', ' ').title() + ".pdf"
         
-        # State C: Completed
         status_placeholder.markdown(get_status_html("Extraction Completed, You Can Download The Book Now", show_spinner=False), unsafe_allow_html=True)
+        progress_bar.empty()
         
+        # Replace the extraction columns completely with just the download button taking full width
+        with col1:
+            st.empty()
+        with col2:
+            st.empty()
+            
         st.download_button(
             label="Download PDF",
             data=pdf_data,
             file_name=filename,
-            mime="application/pdf"
+            mime="application/pdf",
+            use_container_width=True
         )
     else:
         status_placeholder.markdown(get_status_html("Failed. No pages were extracted.", show_spinner=False), unsafe_allow_html=True)
