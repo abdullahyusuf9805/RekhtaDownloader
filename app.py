@@ -55,7 +55,7 @@ def get_status_html(message, show_spinner=True):
     </style>
     """
 
-url = st.text_input("Paste Rekhta Link Here:", placeholder="https://www.rekhta.org/ebooks/...")
+url = st.text_input("Paste Rekhta eBook Link Here:", placeholder="https://www.rekhta.org/ebooks/...")
 if url:
     url = url.replace("/detail", "")
 
