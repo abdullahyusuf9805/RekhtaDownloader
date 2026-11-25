@@ -93,8 +93,11 @@ def get_driver(profile_dir):
     options.add_argument("--disable-web-security")
     options.add_argument("--disable-site-isolation-trials")
     options.add_argument(f"--user-data-dir={profile_dir}")
+    options.page_load_strategy = "none"
     
-    return webdriver.Chrome(options=options)
+    driver = webdriver.Chrome(options=options)
+    driver.set_page_load_timeout(60)
+    return driver
 
 def get_processing_html(percentage):
     return f"""
@@ -121,12 +124,15 @@ if start_clicked and url:
 
     try:
         driver = get_driver(profile_dir)
-        wait = WebDriverWait(driver, 15)
+        wait = WebDriverWait(driver, 30)
         actions = ActionChains(driver)
         
         # State 2: Replace with Processing 0%
         button_slot.markdown(get_processing_html(0), unsafe_allow_html=True)
-        driver.get(url)
+        try:
+            driver.get(url)
+        except Exception:
+            pass
         time.sleep(5) 
         
         try:
