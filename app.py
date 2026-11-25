@@ -1,6 +1,8 @@
 import streamlit as st
 import base64
 import time
+import shutil
+import tempfile
 from urllib.parse import urlparse
 from io import BytesIO
 from PIL import Image
@@ -81,7 +83,7 @@ st.markdown(
 
 st.markdown("<h3 style='text-align: center;'>📚 Rekhta eBook Downloader</h3>", unsafe_allow_html=True)
 
-def get_driver():
+def get_driver(profile_dir):
     options = webdriver.ChromeOptions()
     options.add_argument("--headless=new") 
     options.add_argument("--no-sandbox")
@@ -90,7 +92,7 @@ def get_driver():
     options.add_argument("--window-size=1920,1080")
     options.add_argument("--disable-web-security")
     options.add_argument("--disable-site-isolation-trials")
-    options.add_argument("--user-data-dir=/tmp/chrome-session")
+    options.add_argument(f"--user-data-dir={profile_dir}")
     
     return webdriver.Chrome(options=options)
 
@@ -113,108 +115,117 @@ button_slot = st.empty()
 start_clicked = button_slot.button("Start Extraction", use_container_width=True)
 
 if start_clicked and url:
-    driver = get_driver()
-    wait = WebDriverWait(driver, 15)
-    actions = ActionChains(driver)
-    
-    # State 2: Replace with Processing 0%
-    button_slot.markdown(get_processing_html(0), unsafe_allow_html=True)
-    driver.get(url)
-    time.sleep(5) 
-    
-    try:
-        total_elem = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "ebookTotalPageCount")))
-        target_pages = int(total_elem.text.strip())
-    except Exception:
-        target_pages = 500
-    
+    profile_dir = tempfile.mkdtemp(prefix="chrome-session-")
+    driver = None
     images = []
-    seen_b64 = set()
-    extracted_count = 0
-    stuck_counter = 0
 
-    def get_visible_canvases():
-        return driver.execute_script("""
-            var windowWidth = window.innerWidth;
-            var canvases = document.querySelectorAll("canvas.actualmage");
-            var result = [];
-            canvases.forEach(function(c) {
-                var rect = c.getBoundingClientRect();
-                var centerX = rect.left + (rect.width / 2);
-                var style = window.getComputedStyle(c);
-                if (centerX > 0 && centerX < windowWidth && rect.width > 0 && 
-                    parseFloat(style.opacity) > 0.5 && style.visibility !== 'hidden' && style.display !== 'none') {
-                    var b64 = c.toDataURL('image/jpeg', 1.0).substring(23);
-                    result.push({ x: rect.left, b64: b64 });
-                }
-            });
-            return result;
-        """)
-
-    def nuke_overlays():
-        driver.execute_script("""
-            var popups = document.querySelectorAll('.modal, .overlay, [role="dialog"], .popup');
-            popups.forEach(function(p) { p.remove(); });
-            var allDivs = document.querySelectorAll('div');
-            allDivs.forEach(function(el) {
-                var style = window.getComputedStyle(el);
-                if ((style.position === 'fixed' || style.position === 'absolute') && parseInt(style.zIndex) > 10) {
-                    if (!el.querySelector('canvas')) { el.style.display = 'none'; }
-                }
-            });
-            document.body.style.overflow = 'auto';
-        """)
-
-    def click_next_page():
-        nuke_overlays()
-        body = driver.find_element(By.TAG_NAME, 'body')
-        window_width = driver.execute_script("return window.innerWidth;")
-        x_offset = int(-(window_width / 2) + 40)
-        actions.reset_actions()
-        actions.move_to_element_with_offset(body, x_offset, 0).click().pause(0.5).perform()
-
-    while extracted_count < target_pages:
-        time.sleep(5) 
-        nuke_overlays()
-        canvas_data = get_visible_canvases()
-        has_new = any(d['b64'] not in seen_b64 for d in canvas_data)
+    try:
+        driver = get_driver(profile_dir)
+        wait = WebDriverWait(driver, 15)
+        actions = ActionChains(driver)
         
-        if has_new:
-            time.sleep(4)
-            canvas_data = get_visible_canvases()
-            canvas_data.sort(key=lambda item: item['x'], reverse=True)
-            
-            new_pages_added = 0
-            for data in canvas_data:
-                if data['b64'] not in seen_b64:
-                    seen_b64.add(data['b64'])
-                    img = Image.open(BytesIO(base64.b64decode(data['b64']))).convert('RGB')
-                    images.append(img)
-                    extracted_count += 1
-                    new_pages_added += 1
-                    
-                    # Update State 2 with live percentage
-                    pct = min(int((extracted_count / target_pages) * 100), 100)
-                    button_slot.markdown(get_processing_html(pct), unsafe_allow_html=True)
-                    
-                    if extracted_count >= target_pages:
-                        break
-                        
-            if extracted_count >= target_pages:
-                break
-            
-            if new_pages_added > 0:
-                stuck_counter = 0
-                time.sleep(1) 
-                click_next_page()
-        else:
-            stuck_counter += 1
-            if stuck_counter % 3 == 0:
-                click_next_page()
-            if stuck_counter >= 15:
-                break
+        # State 2: Replace with Processing 0%
+        button_slot.markdown(get_processing_html(0), unsafe_allow_html=True)
+        driver.get(url)
+        time.sleep(5) 
+        
+        try:
+            total_elem = wait.until(EC.presence_of_element_located((By.CLASS_NAME, "ebookTotalPageCount")))
+            target_pages = int(total_elem.text.strip())
+        except Exception:
+            target_pages = 500
+        
+        seen_b64 = set()
+        extracted_count = 0
+        stuck_counter = 0
 
-    driver.quit()
+        def get_visible_canvases():
+            return driver.execute_script("""
+                var windowWidth = window.innerWidth;
+                var canvases = document.querySelectorAll("canvas.actualmage");
+                var result = [];
+                canvases.forEach(function(c) {
+                    var rect = c.getBoundingClientRect();
+                    var centerX = rect.left + (rect.width / 2);
+                    var style = window.getComputedStyle(c);
+                    if (centerX > 0 && centerX < windowWidth && rect.width > 0 && 
+                        parseFloat(style.opacity) > 0.5 && style.visibility !== 'hidden' && style.display !== 'none') {
+                        var b64 = c.toDataURL('image/jpeg', 1.0).substring(23);
+                        result.push({ x: rect.left, b64: b64 });
+                    }
+                });
+                return result;
+            """)
+
+        def nuke_overlays():
+            driver.execute_script("""
+                var popups = document.querySelectorAll('.modal, .overlay, [role="dialog"], .popup');
+                popups.forEach(function(p) { p.remove(); });
+                var allDivs = document.querySelectorAll('div');
+                allDivs.forEach(function(el) {
+                    var style = window.getComputedStyle(el);
+                    if ((style.position === 'fixed' || style.position === 'absolute') && parseInt(style.zIndex) > 10) {
+                        if (!el.querySelector('canvas')) { el.style.display = 'none'; }
+                    }
+                });
+                document.body.style.overflow = 'auto';
+            """)
+
+        def click_next_page():
+            nuke_overlays()
+            body = driver.find_element(By.TAG_NAME, 'body')
+            window_width = driver.execute_script("return window.innerWidth;")
+            x_offset = int(-(window_width / 2) + 40)
+            actions.reset_actions()
+            actions.move_to_element_with_offset(body, x_offset, 0).click().pause(0.5).perform()
+
+        while extracted_count < target_pages:
+            time.sleep(5) 
+            nuke_overlays()
+            canvas_data = get_visible_canvases()
+            has_new = any(d['b64'] not in seen_b64 for d in canvas_data)
+            
+            if has_new:
+                time.sleep(4)
+                canvas_data = get_visible_canvases()
+                canvas_data.sort(key=lambda item: item['x'], reverse=True)
+                
+                new_pages_added = 0
+                for data in canvas_data:
+                    if data['b64'] not in seen_b64:
+                        seen_b64.add(data['b64'])
+                        img = Image.open(BytesIO(base64.b64decode(data['b64']))).convert('RGB')
+                        images.append(img)
+                        extracted_count += 1
+                        new_pages_added += 1
+                        
+                        # Update State 2 with live percentage
+                        pct = min(int((extracted_count / target_pages) * 100), 100)
+                        button_slot.markdown(get_processing_html(pct), unsafe_allow_html=True)
+                        
+                        if extracted_count >= target_pages:
+                            break
+                            
+                if extracted_count >= target_pages:
+                    break
+                
+                if new_pages_added > 0:
+                    stuck_counter = 0
+                    time.sleep(1) 
+                    click_next_page()
+            else:
+                stuck_counter += 1
+                if stuck_counter % 3 == 0:
+                    click_next_page()
+                if stuck_counter >= 15:
+                    break
+    finally:
+        if driver is not None:
+            try:
+                driver.quit()
+            except Exception:
+                pass
+        shutil.rmtree(profile_dir, ignore_errors=True)
     
     # State 3: Replaces State 2 with Download Rekhta eBook button
     if len(images) > 0:
