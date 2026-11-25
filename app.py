@@ -187,7 +187,12 @@ else:
             except Exception:
                 target_pages = 500
 
-            wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "canvas.actualmage")))
+            try:
+                WebDriverWait(driver, 10).until(
+                    EC.presence_of_element_located((By.CSS_SELECTOR, "canvas.actualmage"))
+                )
+            except Exception:
+                pass
 
             seen_b64 = set()
             extracted_count = 0
